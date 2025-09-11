@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo List App</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 Todo List Manager</h1>
+            <p>Stay organized and get things done!</p>
+        </header>
+
+        <!-- Add Todo Form -->
+        <div class="add-todo-section">
+            <h2>Add New Todo</h2>
+            <form id="todoForm">
+                <div class="form-group">
+                    <label for="title">Title *</label>
+                    <input type="text" id="title" name="title" required placeholder="Enter todo title">
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Enter description (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="due_date">Due Date</label>
+                    <input type="date" id="due_date" name="due_date">
+                </div>
+                
+                <button type="submit" class="btn-primary">Add Todo</button>
+            </form>
+        </div>
+
+        <!-- Todo List Display -->
+        <div class="todos-section">
+            <h2>Your Todos</h2>
+            <div id="loadingMessage" class="loading">Loading todos...</div>
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="todoList" class="todo-list"></div>
+            <div id="emptyMessage" class="empty-message" style="display: none;">
+                <p>No todos yet. Add your first todo above! 🎯</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div id="notification" class="notification" style="display: none;"></div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
