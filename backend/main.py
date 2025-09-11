@@ -1,3 +1,11 @@
+"""
+Todo List Manager - DevOps Class Project
+FastAPI backend providing RESTful API for todo management
+Features: CRUD operations, SQLite persistence, automatic API docs
+Author: Elias Nmeir
+Date: September 2025
+"""
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
