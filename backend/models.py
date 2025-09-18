@@ -15,6 +15,8 @@ class TodoUpdate(BaseModel):
     due_date: Optional[str] = None
     completed: Optional[bool] = None
 
+
+
 class TodoResponse(BaseModel):
     """Model for returning todo data to frontend"""
     id: int
