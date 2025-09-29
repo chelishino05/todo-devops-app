@@ -12,6 +12,21 @@ A full-stack todo list application built with FastAPI (Python) backend and vanil
 - RESTful API with automatic documentation
 - Responsive design for mobile and desktop
 
+## Quick Start (TL;DR)
+```bash
+# Clone and setup
+git clone <your-repo-url>
+cd todo-devops-app
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run application
+cd backend
+python3 main.py
+
+# Open browser to http://localhost:8000
+
 ## Tech Stack
 
 ### Backend
