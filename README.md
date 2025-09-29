@@ -14,9 +14,11 @@ A full-stack todo list application built with FastAPI (Python) backend and vanil
 
 ## Quick Start (TL;DR)
 ```bash
-# Clone and setup
-git clone <your-repo-url>
+# Clone this repository
+git clone https://github.com/chelishino05/todo-devops-app.git
 cd todo-devops-app
+
+# Set up virtual environment
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -26,6 +28,8 @@ cd backend
 python3 main.py
 
 # Open browser to http://localhost:8000
+
+
 
 ## Tech Stack
 
