@@ -9,7 +9,7 @@
 
 ## Personal Reflection & Learning Journey
 
-As a second-year Computer Science student, this assignment was one of the most challenging yet rewarding experiences in my academic journey. Coming into this project, I had basic knowledge of Python and web development, but concepts like Docker, CI/CD pipelines, and automated testing were completely new to me. 
+As a third-year Computer Science student, this assignment was one of the most challenging yet rewarding experiences in my academic journey. Coming into this project, I had basic knowledge of Python and web development, but concepts like Docker, CI/CD pipelines, and automated testing were completely new to me. 
 
 There were moments of frustration—Docker wouldn't start, tests kept failing with cryptic error messages, and GitHub Actions workflows seemed like magic that I couldn't understand. I remember spending hours trying to figure out why my test coverage was stuck at 64% when I needed 70%, and feeling overwhelmed when I had to refactor code to follow SOLID principles I had only read about in textbooks.
 
@@ -715,6 +715,7 @@ docker-compose up -d
 - Breaking down what SOLID principles actually mean in practice
 - Understanding the difference between unit tests and integration tests
 - Clarifying Docker terminology and concepts
+- Creating the README.md to save time
 
 **2. Code Guidance and Structure**
 - Helping me understand what each line of code does
