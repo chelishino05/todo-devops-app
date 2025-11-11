@@ -1,73 +1,287 @@
-# Todo List Manager - DevOps Class Project
+# 📝 Todo List Manager - DevOps Project
 
-A full-stack todo list application built with FastAPI (Python) backend and vanilla JavaScript frontend, designed for DevOps pipeline implementation.
+A production-ready todo list application demonstrating modern DevOps practices including automated testing, CI/CD pipelines, containerization, and monitoring.
 
-## Features
+**Student:** Elias Nmeir  
+**Course:** IE University - BCSAI - Software Development & DevOps  
+**Assignment:** Individual Assignment 2
 
-- Create new todo items with title, description, and due date
-- View all todos in an organized, responsive interface
-- Mark todos as complete/incomplete with visual feedback
-- Delete todos with confirmation dialog
-- Persistent storage using SQLite database
-- RESTful API with automatic documentation
-- Responsive design for mobile and desktop
+---
 
-## Quick Start (TL;DR)
+## 🎯 Project Overview
+
+This project transforms a simple todo list web application into a production-ready system with:
+
+- ✅ **87% Test Coverage** (exceeds 70% requirement)
+- ✅ **Automated CI/CD Pipeline** with GitHub Actions
+- ✅ **Docker Containerization** for consistent deployment
+- ✅ **Prometheus Monitoring** with health checks
+- ✅ **Clean Code Architecture** following SOLID principles
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- Docker Desktop (for containerized deployment)
+- Git
+
+### Option 1: Run with Docker (Recommended)
 ```bash
-# Clone this repository
+# Clone the repository
 git clone https://github.com/chelishino05/todo-devops-app.git
 cd todo-devops-app
 
-# Set up virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Run with Docker Compose
+docker-compose up -d
+
+# Access the application
+open http://localhost:8000
+```
+
+### Option 2: Run Locally
+```bash
+# Clone the repository
+git clone https://github.com/chelishino05/todo-devops-app.git
+cd todo-devops-app
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+cd backend
 pip install -r requirements.txt
 
-# Run application
+# Run the application
+uvicorn main:app --reload
+
+# Access the application
+open http://localhost:8000
+```
+
+---
+
+## 📁 Project Structure
+```
+todo-devops-app/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # CI/CD pipeline configuration
+├── backend/
+│   ├── tests/                  # Test suite
+│   │   ├── test_api.py        # API integration tests
+│   │   ├── test_database.py   # Database unit tests
+│   │   └── test_models.py     # Model validation tests
+│   ├── config.py              # Configuration management
+│   ├── database.py            # Database layer
+│   ├── main.py                # FastAPI application
+│   ├── models.py              # Pydantic models
+│   └── requirements.txt       # Python dependencies
+├── frontend/
+│   ├── index.html             # Main page
+│   ├── script.js              # JavaScript logic
+│   └── style.css              # Styling
+├── .dockerignore              # Docker ignore rules
+├── .gitignore                 # Git ignore rules
+├── docker-compose.yml         # Docker Compose configuration
+├── Dockerfile                 # Docker image definition
+├── DEPLOYMENT.md              # Deployment guide
+├── REPORT.md                  # Comprehensive project report
+└── README.md                  # This file
+```
+
+---
+
+## 🧪 Testing
+
+### Run All Tests
+```bash
 cd backend
-python3 main.py
+pytest tests/ -v
+```
 
-# Open browser to http://localhost:8000
+### Run Tests with Coverage
+```bash
+cd backend
+pytest tests/ -v --cov=. --cov-report=html
+```
 
+View coverage report: `open htmlcov/index.html`
 
+### Test Results
 
-## Tech Stack
+- **Total Tests:** 29
+- **Coverage:** 87%
+- **Test Duration:** ~3 seconds
+
+---
+
+## 🐳 Docker
+
+### Build Image
+```bash
+docker build -t todo-app:latest .
+```
+
+### Run Container
+```bash
+docker run -d -p 8000:8000 --name todo-app todo-app:latest
+```
+
+### Stop Container
+```bash
+docker stop todo-app
+docker rm todo-app
+```
+
+---
+
+## 🔄 CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment.
+
+### Pipeline Stages
+
+1. **Test** - Runs all tests and checks coverage (≥70%)
+2. **Lint** - Code quality checks with Black and Flake8
+3. **Build** - Builds Docker image and pushes to GitHub Container Registry
+4. **Deploy** - Deployment notification and instructions
+
+### Trigger Pipeline
+```bash
+git add .
+git commit -m "Your commit message"
+git push origin main
+```
+
+View pipeline status: [GitHub Actions](https://github.com/chelishino05/todo-devops-app/actions)
+
+---
+
+## 📊 Monitoring
+
+### Health Check
+```bash
+curl http://localhost:8000/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "app_name": "Todo List API",
+  "version": "1.0.0",
+  "database": "connected",
+  "stats": {
+    "total": 0,
+    "completed": 0,
+    "pending": 0
+  }
+}
+```
+
+### Prometheus Metrics
+```bash
+curl http://localhost:8000/metrics
+```
+
+**Metrics Available:**
+- `http_requests_total` - Total HTTP requests
+- `http_request_duration_seconds` - Request latency
+- `todo_operations_total` - Todo CRUD operations
+
+---
+
+## 📚 API Documentation
+
+Interactive API documentation is available at:
+
+- **Swagger UI:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+
+### Main Endpoints
+
+- `GET /` - Main application page
+- `GET /health` - Health check endpoint
+- `GET /metrics` - Prometheus metrics
+- `GET /api/todos` - Get all todos
+- `POST /api/todos` - Create a new todo
+- `GET /api/todos/{id}` - Get a specific todo
+- `PUT /api/todos/{id}` - Update a todo
+- `DELETE /api/todos/{id}` - Delete a todo
+
+---
+
+## 🛠️ Technologies Used
 
 ### Backend
-- **Python 3.8+** - Programming language
-- **FastAPI** - Modern web framework for building APIs
-- **SQLite** - Lightweight relational database
-- **Pydantic** - Data validation and serialization
-- **Uvicorn** - ASGI server for running the application
+- **FastAPI** - Modern Python web framework
+- **Pydantic** - Data validation
+- **SQLite** - Database
+- **Uvicorn** - ASGI server
+- **Pytest** - Testing framework
+- **Prometheus Client** - Metrics collection
 
 ### Frontend
-- **HTML5** - Structure and semantic markup
-- **CSS3** - Styling with modern features
-- **Vanilla JavaScript** - Client-side functionality and API communication
+- **HTML5** - Structure
+- **CSS3** - Styling
+- **Vanilla JavaScript** - Interactivity
 
-## Project Structure
-todo-devops-app/
-├── backend/
-│   ├── main.py          # FastAPI application and API routes
-│   ├── database.py      # Database operations and CRUD functions
-│   ├── models.py        # Pydantic models for data validation
-│   └── todos.db         # SQLite database (created automatically)
-├── frontend/
-│   ├── index.html       # Main HTML interface
-│   ├── style.css        # CSS styling and responsive design
-│   └── script.js        # JavaScript functionality and API calls
-├── requirements.txt     # Python dependencies
-├── .gitignore          # Git ignore rules
-└── README.md           # This documentation
-## Installation & Setup
+### DevOps
+- **Docker** - Containerization
+- **GitHub Actions** - CI/CD
+- **GitHub Container Registry** - Image storage
+- **Black & Flake8** - Code quality
 
-### Prerequisites
-- Python 3.8 or higher
-- Git for version control
+---
 
-### Quick Start
+## 🎓 Learning Outcomes
 
-1. **Clone the repository**
-```bash
-   git clone <your-repo-url>
-   cd todo-devops-app
+This project demonstrates:
+
+- Clean code architecture with SOLID principles
+- Comprehensive automated testing (unit + integration)
+- Continuous Integration/Continuous Deployment
+- Container orchestration with Docker
+- Application monitoring and health checks
+- Professional documentation practices
+
+---
+
+## 📖 Additional Documentation
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Detailed deployment instructions
+- **[REPORT.md](REPORT.md)** - Comprehensive project report and learning journey
+
+---
+
+## 🤝 Contributing
+
+This is an academic project, but feedback and suggestions are welcome!
+
+---
+
+## 📝 License
+
+This project is for educational purposes as part of IE University coursework.
+
+---
+
+## 👤 Author
+
+**Elias Nmeir**  
+Computer Science & AI Student  
+IE University, Madrid
+
+---
+
+## 🙏 Acknowledgments
+
+- IE University DevOps Course
+- FastAPI Documentation
+- Docker Documentation
+- GitHub Actions Community
+- AI assistance for learning and guidance
