@@ -36,7 +36,9 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
-
+coverage.xml
+*.cover
+.coverage.*
 # Distribution / packaging
 dist/
 build/
