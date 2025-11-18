@@ -284,6 +284,145 @@ The first time I pushed code and watched the pipeline automatically:
 - **Number of times I checked the Actions tab**: Probably 50+
 - **Feeling when it first passed**: Incredible! 🚀
 
+### Live Cloud Deployment
+
+**Deployment Platform:** Render.com  
+**Production URL:** https://todo-devops-app.onrender.com  
+**Deployment Date:** November 18, 2025  
+**Status:** ✅ Live and Running
+
+#### Why Render?
+
+After researching various cloud platforms, I chose Render because:
+- **Free tier** available (perfect for student projects)
+- **No credit card required** (unlike AWS, Google Cloud)
+- **Automatic HTTPS** (security built-in)
+- **GitHub integration** (deploys automatically on push)
+- **Docker support** (uses my Dockerfile directly)
+- **Easy setup** (took 15 minutes vs hours on other platforms)
+
+#### Deployment Journey
+
+**Initial Confusion:**
+I initially thought pushing to GitHub Container Registry was "deployment," but realized I needed the app actually running on a cloud platform where anyone could access it!
+
+**The Setup Process:**
+1. Created free Render account with GitHub
+2. Connected my repository
+3. Configured Docker runtime
+4. Set environment variables (PORT=8000, DATABASE_NAME=todos.db)
+5. Clicked deploy and watched the magic happen!
+
+**First Deployment Experience:**
+Watching the deployment logs in real-time was exciting! Seeing messages like "Building Docker image..." and "Starting service..." made me realize how professional deployment actually works. When it finally showed "Your service is live 🎉" and I could access my app from anywhere in the world - that felt AMAZING! 🌍
+
+#### Deployment Architecture
+```
+Developer Push → GitHub → GitHub Actions (CI/CD) → Render Webhook → Docker Build → Live Deployment
+```
+
+**How It Works:**
+1. I push code to GitHub main branch
+2. GitHub Actions runs all tests (must pass!)
+3. Render detects the push via webhook
+4. Render pulls latest code
+5. Render builds Docker container from Dockerfile
+6. Render deploys new container
+7. Old container gracefully shuts down
+8. New version is live with zero downtime!
+
+#### Production Configuration
+
+**Environment Variables Set:**
+- `PORT=8000` - Application port
+- `DATABASE_NAME=todos.db` - SQLite database file
+
+**Resource Allocation:**
+- Free tier: 512 MB RAM
+- Shared CPU
+- 750 hours/month uptime
+
+**Deployment Features:**
+- ✅ Automatic HTTPS/SSL
+- ✅ CDN for static files
+- ✅ Health check monitoring
+- ✅ Auto-restart on failure
+- ✅ Deployment logs
+- ✅ Environment variable management
+
+#### Challenges Faced
+
+**Challenge: Free Tier Sleep Mode**
+The free tier puts the app to "sleep" after 15 minutes of inactivity. This means the first request after sleeping takes 30 seconds to wake up.
+
+**Solution:** This is acceptable for an academic project. I documented this behavior clearly for users. In production, I would upgrade to a paid tier to keep it always running.
+
+**Challenge: Database Persistence**
+SQLite database resets when container restarts on Render.
+
+**Learning:** For production, I would need to use Render's PostgreSQL service or mount persistent storage. This taught me the difference between development and production databases!
+
+#### What I Learned About Deployment
+
+1. **GitHub Container Registry ≠ Deployment**  
+   Just building an image isn't enough - it needs to run somewhere accessible!
+
+2. **Environment Variables Matter**  
+   Production needs different settings than localhost
+
+3. **Free Tiers Have Limitations**  
+   Sleep mode, limited resources, but perfect for learning!
+
+4. **Deployment Logs Are Crucial**  
+   Being able to see exactly what's happening during deployment helps debugging
+
+5. **Automation Is Powerful**  
+   Once set up, I never have to manually deploy again - it just works!
+
+#### Deployment Verification
+
+To verify the deployment works, I tested all endpoints:
+
+**Health Check Response:**
+```bash
+curl https://todo-devops-app.onrender.com/health
+```
+
+**Expected Response:**
+```json
+{
+  "status": "healthy",
+  "app_name": "Todo List API",
+  "version": "1.0.0",
+  "database": "connected",
+  "stats": {
+    "total": 0,
+    "completed": 0,
+    "pending": 0
+  }
+}
+```
+
+**Verified Working Endpoints:**
+- ✅ Main Application: https://todo-devops-app.onrender.com
+- ✅ API Documentation: https://todo-devops-app.onrender.com/docs
+- ✅ Health Check: https://todo-devops-app.onrender.com/health
+- ✅ Metrics Endpoint: https://todo-devops-app.onrender.com/metrics
+
+All endpoints working perfectly in production! ✅
+
+#### Future Deployment Improvements
+
+If I had more time/resources:
+1. **Add PostgreSQL** - Replace SQLite with proper production database
+2. **Add Redis** - For caching and session management
+3. **Multiple Regions** - Deploy to multiple locations for better global performance
+4. **Staging Environment** - Test deployments before production
+5. **Custom Domain** - Use my own domain name instead of .onrender.com
+6. **Monitoring Dashboards** - Set up Grafana for visualization
+7. **Automated Backups** - Schedule regular database backups
+
+
 ---
 
 ## 4. Deployment and Containerization (20%)

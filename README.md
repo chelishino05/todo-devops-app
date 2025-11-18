@@ -7,6 +7,21 @@ A production-ready todo list application demonstrating modern DevOps practices i
 **Assignment:** Individual Assignment 2
 
 ---
+## 🌐 Live Demo
+
+**Try the deployed application:** [https://todo-devops-app.onrender.com](https://todo-devops-app.onrender.com)
+
+The application is deployed live on Render.com cloud platform with automatic deployment from GitHub.
+
+**Available Endpoints:**
+- Main App: [https://todo-devops-app.onrender.com](https://todo-devops-app.onrender.com)
+- API Docs: [https://todo-devops-app.onrender.com/docs](https://todo-devops-app.onrender.com/docs)
+- Health Check: [https://todo-devops-app.onrender.com/health](https://todo-devops-app.onrender.com/health)
+- Metrics: [https://todo-devops-app.onrender.com/metrics](https://todo-devops-app.onrender.com/metrics)
+
+⚠️ *Note: Free tier may take 30 seconds to wake up on first visit.*
+
+---
 
 ## 🎯 Project Overview
 

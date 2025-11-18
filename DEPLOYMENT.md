@@ -3,6 +3,59 @@
 ## Overview
 This application uses GitHub Actions for CI/CD and deploys as a Docker container to GitHub Container Registry (GHCR).
 
+
+
+**Production URL:** https://todo-devops-app.onrender.com
+
+The application is deployed and running live on Render.com cloud platform.
+
+### Quick Access
+
+- **Main Application:** https://todo-devops-app.onrender.com
+- **API Documentation:** https://todo-devops-app.onrender.com/docs
+- **Health Check:** https://todo-devops-app.onrender.com/health
+- **Metrics:** https://todo-devops-app.onrender.com/metrics
+
+**Note:** Free tier may take 30 seconds to wake up on first visit if the app has been idle.
+
+---
+
+## Cloud Deployment Details
+
+### Platform: Render.com
+
+**Why Render?**
+- Free tier suitable for student projects
+- Automatic deployment from GitHub
+- Built-in HTTPS
+- Docker support
+- Easy configuration
+
+**Deployment Configuration:**
+- **Platform:** Render Web Service
+- **Region:** EU Central (Frankfurt)
+- **Runtime:** Docker
+- **Instance:** Free tier (750 hours/month)
+- **Auto-Deploy:** Enabled from main branch
+
+### Deployment Process
+
+1. **Code Push:** Developer pushes code to GitHub main branch
+2. **CI Pipeline:** GitHub Actions runs tests and builds Docker image
+3. **Webhook Trigger:** Render detects changes via GitHub webhook
+4. **Container Build:** Render pulls code and rebuilds Docker container
+5. **Deployment:** New version deployed automatically with zero downtime
+6. **Health Check:** Render monitors /health endpoint
+
+### First Deployment
+- **Date:** November 18, 2025
+- **Status:** ✅ Successfully deployed
+- **Build Time:** ~5 minutes
+- **Deployment Time:** ~30 seconds
+
+---
+
+
 ## Automated Deployment
 
 ### CI/CD Pipeline
