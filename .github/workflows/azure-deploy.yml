@@ -1,0 +1,267 @@
+name: Azure CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.10'
+  COVERAGE_THRESHOLD: 70
+
+jobs:
+  # ============================================================================
+  # Job 1: Test and Coverage
+  # ============================================================================
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run tests with coverage
+        run: |
+          cd backend
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term --cov-report=html --cov-fail-under=${{ env.COVERAGE_THRESHOLD }}
+
+      - name: Check coverage threshold
+        run: |
+          cd backend
+          coverage report --fail-under=${{ env.COVERAGE_THRESHOLD }}
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            backend/coverage.xml
+            backend/htmlcov/
+
+  # ============================================================================
+  # Job 2: Lint (Optional but recommended)
+  # ============================================================================
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black
+
+      - name: Run Black formatter check
+        run: |
+          black --check backend/
+        continue-on-error: true
+
+      - name: Run Flake8 linter
+        run: |
+          flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        continue-on-error: true
+
+  # ============================================================================
+  # Job 3: Build and Push to Azure Container Registry
+  # ============================================================================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
+            }
+
+      - name: Create Resource Group
+        run: |
+          az group create --name todolist-rg --location eastus || echo "Resource group already exists"
+
+      - name: Create Azure Container Registry
+        run: |
+          az acr create \
+            --resource-group todolist-rg \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }}acr \
+            --sku Basic \
+            --admin-enabled true || echo "ACR already exists"
+
+      - name: Get ACR credentials
+        id: acr-creds
+        run: |
+          ACR_USERNAME=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query passwords[0].value -o tsv)
+          echo "::add-mask::$ACR_PASSWORD"
+          echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
+          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+          echo "login_server=${{ secrets.AZURE_WEBAPP_NAME }}acr.azurecr.io" >> $GITHUB_OUTPUT
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.acr-creds.outputs.login_server }}
+          username: ${{ steps.acr-creds.outputs.username }}
+          password: ${{ steps.acr-creds.outputs.password }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }} .
+          docker push ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }}
+          
+          # Also tag as latest
+          docker tag ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }} \
+                     ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest
+          docker push ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest
+
+      - name: Build success
+        run: |
+          echo "✅ Docker image built and pushed successfully!"
+          echo "Image: ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }}"
+
+  # ============================================================================
+  # Job 4: Deploy to Azure Web App
+  # ============================================================================
+  deploy:
+    name: Deploy to Azure
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
+            }
+
+      - name: Get ACR credentials
+        id: acr-creds
+        run: |
+          ACR_USERNAME=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query passwords[0].value -o tsv)
+          echo "::add-mask::$ACR_PASSWORD"
+          echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
+          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+          echo "login_server=${{ secrets.AZURE_WEBAPP_NAME }}acr.azurecr.io" >> $GITHUB_OUTPUT
+
+      - name: Create App Service Plan
+        run: |
+          az appservice plan create \
+            --name todolist-plan \
+            --resource-group todolist-rg \
+            --is-linux \
+            --sku B1 || echo "App Service Plan already exists"
+
+      - name: Create Web App
+        run: |
+          az webapp create \
+            --resource-group todolist-rg \
+            --plan todolist-plan \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --deployment-container-image-name ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest || echo "Web App already exists"
+
+      - name: Configure Web App Container Settings
+        run: |
+          # Set container image
+          az webapp config container set \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group todolist-rg \
+            --docker-custom-image-name ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest \
+            --docker-registry-server-url https://${{ steps.acr-creds.outputs.login_server }} \
+            --docker-registry-server-user ${{ steps.acr-creds.outputs.username }} \
+            --docker-registry-server-password ${{ steps.acr-creds.outputs.password }}
+          
+          # Enable continuous deployment
+          az webapp deployment container config \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group todolist-rg \
+            --enable-cd true
+          
+          # Configure app settings
+          az webapp config appsettings set \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group todolist-rg \
+            --settings WEBSITES_PORT=8000
+
+      - name: Restart Web App
+        run: |
+          az webapp restart \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group todolist-rg
+
+      - name: Azure logout
+        run: az logout
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "✅ DEPLOYMENT SUCCESSFUL!"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+          echo "🚀 Your application is live at:"
+          echo "   https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo ""
+          echo "📊 Health Check:"
+          echo "   https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/health"
+          echo ""
+          echo "📈 Metrics:"
+          echo "   https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/metrics"
+          echo ""
+          echo "📚 API Documentation:"
+          echo "   https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/docs"
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Check the logs above for details."
+          exit 1

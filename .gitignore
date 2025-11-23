@@ -28,6 +28,20 @@ Thumbs.db
 # Environment variables
 .env
 *.env.local
+# Credentials and Secrets (CRITICAL - NEVER COMMIT THESE!)
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*credentials*.json
+*secrets*.json
+*secrets*.yaml
+*secrets*.yml
+*.credentials
+*.publishsettings
+.azure/
 
 # Logs
 *.log
