@@ -119,21 +119,25 @@ jobs:
 
       - name: Create Azure Container Registry
         run: |
+          # Remove hyphens from webapp name for ACR (ACR names cannot contain hyphens)
+          ACR_NAME=$(echo "${{ secrets.AZURE_WEBAPP_NAME }}" | tr -d '-')acr
+          echo "ACR_NAME=${ACR_NAME}" >> $GITHUB_ENV
+          
           az acr create \
             --resource-group todolist-rg \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }}acr \
+            --name ${ACR_NAME} \
             --sku Basic \
             --admin-enabled true || echo "ACR already exists"
 
       - name: Get ACR credentials
         id: acr-creds
         run: |
-          ACR_USERNAME=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query passwords[0].value -o tsv)
+          ACR_USERNAME=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query passwords[0].value -o tsv)
           echo "::add-mask::$ACR_PASSWORD"
           echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-          echo "login_server=${{ secrets.AZURE_WEBAPP_NAME }}acr.azurecr.io" >> $GITHUB_OUTPUT
+          echo "login_server=${ACR_NAME}.azurecr.io" >> $GITHUB_OUTPUT
 
       - name: Log in to Azure Container Registry
         uses: docker/login-action@v3
@@ -184,12 +188,15 @@ jobs:
       - name: Get ACR credentials
         id: acr-creds
         run: |
-          ACR_USERNAME=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${{ secrets.AZURE_WEBAPP_NAME }}acr --resource-group todolist-rg --query passwords[0].value -o tsv)
+          # Remove hyphens from webapp name for ACR
+          ACR_NAME=$(echo "${{ secrets.AZURE_WEBAPP_NAME }}" | tr -d '-')acr
+          
+          ACR_USERNAME=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query passwords[0].value -o tsv)
           echo "::add-mask::$ACR_PASSWORD"
           echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
           echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-          echo "login_server=${{ secrets.AZURE_WEBAPP_NAME }}acr.azurecr.io" >> $GITHUB_OUTPUT
+          echo "login_server=${ACR_NAME}.azurecr.io" >> $GITHUB_OUTPUT
 
       - name: Create App Service Plan
         run: |
