@@ -113,53 +113,42 @@ jobs:
               "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
             }
 
+      - name: Set ACR name
+        id: acr-name
+        run: |
+          # Remove hyphens from webapp name for ACR (ACR names cannot contain hyphens)
+          ACR_NAME=$(echo "${{ secrets.AZURE_WEBAPP_NAME }}" | tr -d '-')acr
+          echo "acr_name=${ACR_NAME}" >> $GITHUB_OUTPUT
+          echo "ACR Name: ${ACR_NAME}"
+
       - name: Create Resource Group
         run: |
           az group create --name todolist-rg --location eastus || echo "Resource group already exists"
 
-      - name: Create Azure Container Registry
+      - name: Create Azure Container Registry with Admin Enabled
         run: |
-          # Remove hyphens from webapp name for ACR (ACR names cannot contain hyphens)
-          ACR_NAME=$(echo "${{ secrets.AZURE_WEBAPP_NAME }}" | tr -d '-')acr
-          echo "ACR_NAME=${ACR_NAME}" >> $GITHUB_ENV
-          
           az acr create \
             --resource-group todolist-rg \
-            --name ${ACR_NAME} \
+            --name ${{ steps.acr-name.outputs.acr_name }} \
             --sku Basic \
             --admin-enabled true || echo "ACR already exists"
 
-      - name: Get ACR credentials
-        id: acr-creds
+      - name: Build and Push using ACR Build Task
         run: |
-          ACR_USERNAME=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query passwords[0].value -o tsv)
-          echo "::add-mask::$ACR_PASSWORD"
-          echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
-          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-          echo "login_server=${ACR_NAME}.azurecr.io" >> $GITHUB_OUTPUT
-
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ steps.acr-creds.outputs.login_server }}
-          username: ${{ steps.acr-creds.outputs.username }}
-          password: ${{ steps.acr-creds.outputs.password }}
-
-      - name: Build and push Docker image
-        run: |
-          docker build -t ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }} .
-          docker push ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }}
-          
-          # Also tag as latest
-          docker tag ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }} \
-                     ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest
-          docker push ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest
+          # Use ACR build task - this builds in Azure without needing local Docker or credentials
+          az acr build \
+            --registry ${{ steps.acr-name.outputs.acr_name }} \
+            --resource-group todolist-rg \
+            --image todolist-app:${{ github.sha }} \
+            --image todolist-app:latest \
+            --file Dockerfile \
+            .
 
       - name: Build success
         run: |
           echo "✅ Docker image built and pushed successfully!"
-          echo "Image: ${{ steps.acr-creds.outputs.login_server }}/todolist-app:${{ github.sha }}"
+          echo "Registry: ${{ steps.acr-name.outputs.acr_name }}.azurecr.io"
+          echo "Image: todolist-app:${{ github.sha }}"
 
   # ============================================================================
   # Job 4: Deploy to Azure Web App
@@ -185,17 +174,11 @@ jobs:
               "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
             }
 
-      - name: Get ACR credentials
-        id: acr-creds
+      - name: Set ACR name
+        id: acr-name
         run: |
-          # Remove hyphens from webapp name for ACR
           ACR_NAME=$(echo "${{ secrets.AZURE_WEBAPP_NAME }}" | tr -d '-')acr
-          
-          ACR_USERNAME=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${ACR_NAME} --resource-group todolist-rg --query passwords[0].value -o tsv)
-          echo "::add-mask::$ACR_PASSWORD"
-          echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
-          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+          echo "acr_name=${ACR_NAME}" >> $GITHUB_OUTPUT
           echo "login_server=${ACR_NAME}.azurecr.io" >> $GITHUB_OUTPUT
 
       - name: Create App Service Plan
@@ -206,36 +189,57 @@ jobs:
             --is-linux \
             --sku B1 || echo "App Service Plan already exists"
 
-      - name: Create Web App
+      - name: Create Web App with ACR Integration
         run: |
+          # Create web app with ACR image
           az webapp create \
             --resource-group todolist-rg \
             --plan todolist-plan \
             --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --deployment-container-image-name ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest || echo "Web App already exists"
+            --deployment-container-image-name ${{ steps.acr-name.outputs.login_server }}/todolist-app:latest || echo "Web App already exists"
+          
+          # Assign managed identity to web app
+          az webapp identity assign \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group todolist-rg || echo "Identity already assigned"
 
-      - name: Configure Web App Container Settings
+      - name: Configure Web App to use ACR
         run: |
-          # Set container image
+          # Enable ACR pull using managed identity or admin credentials
           az webapp config container set \
             --name ${{ secrets.AZURE_WEBAPP_NAME }} \
             --resource-group todolist-rg \
-            --docker-custom-image-name ${{ steps.acr-creds.outputs.login_server }}/todolist-app:latest \
-            --docker-registry-server-url https://${{ steps.acr-creds.outputs.login_server }} \
-            --docker-registry-server-user ${{ steps.acr-creds.outputs.username }} \
-            --docker-registry-server-password ${{ steps.acr-creds.outputs.password }}
+            --docker-custom-image-name ${{ steps.acr-name.outputs.login_server }}/todolist-app:latest \
+            --docker-registry-server-url https://${{ steps.acr-name.outputs.login_server }}
           
-          # Enable continuous deployment
-          az webapp deployment container config \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --resource-group todolist-rg \
-            --enable-cd true
-          
-          # Configure app settings
+          # Use ACR admin credentials (already enabled during creation)
           az webapp config appsettings set \
             --name ${{ secrets.AZURE_WEBAPP_NAME }} \
             --resource-group todolist-rg \
-            --settings WEBSITES_PORT=8000
+            --settings WEBSITES_PORT=8000 \
+                      DOCKER_ENABLE_CI=true
+
+      - name: Enable ACR admin and configure web app
+        run: |
+          # Ensure admin is enabled
+          az acr update --name ${{ steps.acr-name.outputs.acr_name }} --admin-enabled true
+          
+          # Get admin credentials and configure web app
+          ACR_USERNAME=$(az acr credential show --name ${{ steps.acr-name.outputs.acr_name }} --query username -o tsv 2>/dev/null || echo "admin")
+          ACR_PASSWORD=$(az acr credential show --name ${{ steps.acr-name.outputs.acr_name }} --query passwords[0].value -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$ACR_PASSWORD" ]; then
+            echo "Configuring web app with ACR credentials..."
+            az webapp config container set \
+              --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+              --resource-group todolist-rg \
+              --docker-custom-image-name ${{ steps.acr-name.outputs.login_server }}/todolist-app:latest \
+              --docker-registry-server-url https://${{ steps.acr-name.outputs.login_server }} \
+              --docker-registry-server-user "$ACR_USERNAME" \
+              --docker-registry-server-password "$ACR_PASSWORD"
+          else
+            echo "Using system-assigned managed identity for ACR access"
+          fi
 
       - name: Restart Web App
         run: |
@@ -264,6 +268,8 @@ jobs:
           echo ""
           echo "📚 API Documentation:"
           echo "   https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/docs"
+          echo ""
+          echo "Note: It may take 2-3 minutes for the container to fully start."
           echo ""
           echo "═══════════════════════════════════════════════════════"
 
