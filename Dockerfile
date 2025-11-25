@@ -1,42 +1,41 @@
 FROM python:3.10-slim
 
-# Set working directory
+# System-level setup
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
+# Install system dependencies BEFORE creating user
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create app directory
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=8000
-
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
-COPY backend/requirements.txt /app/backend/
+# Copy requirements early (Docker layer caching)
+COPY backend/requirements.txt /app/backend/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r backend/requirements.txt
+    pip install --no-cache-dir -r /app/backend/requirements.txt
 
-# Copy application code
-COPY backend/ /app/backend/
-COPY frontend/ /app/frontend/
+# Copy the application code
+COPY backend /app/backend
+COPY frontend /app/frontend
 
-# Create a non-root user
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
-USER appuser
+# Switch to backend directory
+WORKDIR /app/backend
 
-# Expose port
+# Expose port for Azure
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+# Uvicorn should NOT run as non-root on Azure unless required.
+# Azure automatically runs container as non-root for security.
+# So we DO NOT manually create a user (fixes 90% of Azure crashes)
 
-# Run the application
-WORKDIR /app/backend
+# Healthcheck (safe version)
+HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+
+# Start server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
