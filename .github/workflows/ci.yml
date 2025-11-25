@@ -112,10 +112,12 @@ jobs:
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
     
+    # 🔧 FIXED DOCKERFILE LOCATION — THIS WAS THE ISSUE
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: ./Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -131,12 +133,24 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Login to Azure
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # Deploy to existing App Service
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-container-deploy@v1
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        image: ghcr.io/${{ github.repository }}:latest
+
     - name: Deployment notification
       run: |
-        echo "🚀 Deployment successful!"
-        echo "Docker image has been built and pushed to GitHub Container Registry"
-        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-        echo ""
-        echo "To pull and run the image:"
-        echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-        echo "docker run -p 8000:8000 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        echo "🚀 Deployment completed"
+        echo "App deployed to Azure Web App: ${{ secrets.AZURE_WEBAPP_NAME }}"
