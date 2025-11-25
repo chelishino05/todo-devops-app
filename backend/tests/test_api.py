@@ -1,6 +1,6 @@
 """
 Integration tests for FastAPI endpoints
-Tests API routes and responses
+Tests API routes and responses including error cases
 """
 
 import pytest
@@ -26,6 +26,17 @@ def setup_test_db():
         os.remove(db_name)
 
 
+def test_root_endpoint():
+    """Test root endpoint returns HTML"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    response = client.get("/")
+    
+    assert response.status_code == 200
+
+
 def test_health_check():
     """Test health check endpoint"""
     from main import app
@@ -37,6 +48,8 @@ def test_health_check():
     assert response.status_code == 200
     data = response.json()
     assert data['status'] == 'healthy'
+    assert 'database' in data
+    assert 'stats' in data
 
 
 def test_metrics_endpoint():
@@ -67,6 +80,22 @@ def test_create_todo():
     assert response.status_code == 201
     data = response.json()
     assert data['title'] == "Test Todo"
+    assert data['description'] == "Test Description"
+
+
+def test_create_todo_minimal():
+    """Test creating todo with only required fields"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    todo_data = {"title": "Minimal Todo"}
+    
+    response = client.post("/api/todos", json=todo_data)
+    
+    assert response.status_code == 201
+    data = response.json()
+    assert data['title'] == "Minimal Todo"
 
 
 def test_get_all_todos():
@@ -75,10 +104,29 @@ def test_get_all_todos():
     from fastapi.testclient import TestClient
     
     client = TestClient(app)
+    
+    # Create some todos first
+    client.post("/api/todos", json={"title": "Todo 1"})
+    client.post("/api/todos", json={"title": "Todo 2"})
+    
     response = client.get("/api/todos")
     
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 2
+
+
+def test_get_all_todos_empty():
+    """Test getting todos when none exist"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    response = client.get("/api/todos")
+    
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_get_todo_by_id():
@@ -99,6 +147,18 @@ def test_get_todo_by_id():
     assert response.json()['title'] == "Find Me"
 
 
+def test_get_todo_by_id_not_found():
+    """Test getting non-existent todo returns 404"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    response = client.get("/api/todos/99999")
+    
+    assert response.status_code == 404
+    assert "not found" in response.json()['detail'].lower()
+
+
 def test_update_todo():
     """Test updating a todo"""
     from main import app
@@ -111,10 +171,46 @@ def test_update_todo():
     todo_id = create_response.json()['id']
     
     # Update it
-    response = client.put(f"/api/todos/{todo_id}", json={"title": "Updated"})
+    response = client.put(
+        f"/api/todos/{todo_id}", 
+        json={"title": "Updated", "completed": True}
+    )
     
     assert response.status_code == 200
-    assert response.json()['title'] == "Updated"
+    data = response.json()
+    assert data['title'] == "Updated"
+    assert data['completed'] == True
+
+
+def test_update_todo_partial():
+    """Test partial update of todo"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    
+    # Create a todo
+    create_response = client.post("/api/todos", json={"title": "Original", "description": "Desc"})
+    todo_id = create_response.json()['id']
+    
+    # Update only title
+    response = client.put(f"/api/todos/{todo_id}", json={"title": "New Title"})
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data['title'] == "New Title"
+
+
+def test_update_todo_not_found():
+    """Test updating non-existent todo returns 404"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    response = client.put("/api/todos/99999", json={"title": "Updated"})
+    
+    assert response.status_code == 404
+    assert "not found" in response.json()['detail'].lower()
 
 
 def test_delete_todo():
@@ -132,3 +228,46 @@ def test_delete_todo():
     response = client.delete(f"/api/todos/{todo_id}")
     
     assert response.status_code == 200
+    assert "deleted" in response.json()['message'].lower()
+    
+    # Verify it's gone
+    get_response = client.get(f"/api/todos/{todo_id}")
+    assert get_response.status_code == 404
+
+
+def test_delete_todo_not_found():
+    """Test deleting non-existent todo returns 404"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    response = client.delete("/api/todos/99999")
+    
+    assert response.status_code == 404
+    assert "not found" in response.json()['detail'].lower()
+
+
+def test_update_todo_complete_workflow():
+    """Test complete todo lifecycle"""
+    from main import app
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    
+    # Create
+    create_response = client.post("/api/todos", json={"title": "Lifecycle Test"})
+    assert create_response.status_code == 201
+    todo_id = create_response.json()['id']
+    
+    # Read
+    get_response = client.get(f"/api/todos/{todo_id}")
+    assert get_response.status_code == 200
+    
+    # Update
+    update_response = client.put(f"/api/todos/{todo_id}", json={"completed": True})
+    assert update_response.status_code == 200
+    assert update_response.json()['completed'] == True
+    
+    # Delete
+    delete_response = client.delete(f"/api/todos/{todo_id}")
+    assert delete_response.status_code == 200
