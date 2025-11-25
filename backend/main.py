@@ -10,6 +10,8 @@ Date: November 2025
 import logging
 from typing import List
 from contextlib import asynccontextmanager
+import os
+import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,37 +19,44 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
-import time
 
 from models import TodoCreate, TodoUpdate, TodoResponse
 from database import TodoDatabase, DatabaseError
 from config import settings
 
-# Set up logging
+# -------------------------------------------------
+# LOGGING CONFIGURATION
+# -------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Prometheus metrics
+# -------------------------------------------------
+# PROMETHEUS METRICS
+# -------------------------------------------------
 REQUEST_COUNT = Counter(
     'http_requests_total', 
     'Total HTTP requests', 
     ['method', 'endpoint', 'status']
 )
+
 REQUEST_LATENCY = Histogram(
     'http_request_duration_seconds', 
     'HTTP request latency', 
     ['method', 'endpoint']
 )
+
 TODO_OPERATIONS = Counter(
     'todo_operations_total',
     'Total todo operations',
     ['operation', 'status']
 )
 
-# Database instance
+# -------------------------------------------------
+# DATABASE INSTANCE
+# -------------------------------------------------
 db = None
 
 
@@ -61,33 +70,31 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down application...")
 
 
-# Create FastAPI app instance
+# -------------------------------------------------
+# FASTAPI APP INITIALIZATION
+# -------------------------------------------------
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     lifespan=lifespan
 )
 
-
-# Middleware for request logging and metrics
+# -------------------------------------------------
+# MIDDLEWARE FOR CORS + LOGGING + METRICS
+# -------------------------------------------------
 @app.middleware("http")
 async def log_and_measure_requests(request: Request, call_next):
     """Log all requests and measure latency"""
     start_time = time.time()
     
-    # Process request
     response = await call_next(request)
-    
-    # Calculate latency
     latency = time.time() - start_time
-    
-    # Log request
+
     logger.info(
         f"{request.method} {request.url.path} "
         f"completed with status {response.status_code} in {latency:.3f}s"
     )
     
-    # Record metrics
     if settings.enable_metrics:
         REQUEST_COUNT.labels(
             method=request.method,
@@ -99,7 +106,7 @@ async def log_and_measure_requests(request: Request, call_next):
             method=request.method,
             endpoint=request.url.path
         ).observe(latency)
-    
+
     return response
 
 
@@ -112,19 +119,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -------------------------------------------------
+# STATIC FILES (FIXED FOR TESTING)
+# -------------------------------------------------
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(CURRENT_DIR, "..", "frontend")
 
-# Serve static files
-app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+# Prevent pytest from crashing — only mount if directory exists
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-# Root endpoint - serve main page
+# -------------------------------------------------
+# ROOT ENDPOINT (SAFE VERSION)
+# -------------------------------------------------
 @app.get("/")
 async def read_root():
-    """Serve the main HTML page"""
-    return FileResponse("../frontend/index.html")
+    """
+    Serve the main HTML page.
+    If frontend folder is missing (tests), return a simple message.
+    """
+    index_path = os.path.join(STATIC_DIR, "index.html")
+
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+
+    # Fallback for pytest / CI
+    return {"message": "Todo API running (frontend not available in test mode)"}
 
 
-# Health check endpoint
+# -------------------------------------------------
+# HEALTH CHECK
+# -------------------------------------------------
 @app.get("/health")
 async def health_check():
     """
@@ -132,9 +158,7 @@ async def health_check():
     Returns application status and database connectivity
     """
     try:
-        # Check database connectivity
         stats = db.get_stats()
-        
         return JSONResponse(
             status_code=200,
             content={
@@ -159,15 +183,18 @@ async def health_check():
         )
 
 
-# Metrics endpoint for Prometheus
+# -------------------------------------------------
+# PROMETHEUS METRICS ENDPOINT
+# -------------------------------------------------
 @app.get("/metrics")
 async def metrics():
     """Expose Prometheus metrics"""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# API Routes for CRUD operations
-
+# -------------------------------------------------
+# CRUD ROUTES
+# -------------------------------------------------
 @app.post("/api/todos", response_model=TodoResponse, status_code=201)
 async def create_todo(todo: TodoCreate):
     """Create a new todo item"""
@@ -192,14 +219,10 @@ async def get_all_todos():
         todos = db.get_all_todos()
         TODO_OPERATIONS.labels(operation='read_all', status='success').inc()
         return [TodoResponse(**todo) for todo in todos]
-    except DatabaseError as e:
+    except Exception as e:
         TODO_OPERATIONS.labels(operation='read_all', status='error').inc()
         logger.error(f"Failed to retrieve todos: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve todos")
-    except Exception as e:
-        TODO_OPERATIONS.labels(operation='read_all', status='error').inc()
-        logger.error(f"Unexpected error retrieving todos: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/todos/{todo_id}", response_model=TodoResponse)
@@ -210,19 +233,15 @@ async def get_todo(todo_id: int):
         if not todo:
             TODO_OPERATIONS.labels(operation='read', status='not_found').inc()
             raise HTTPException(status_code=404, detail="Todo not found")
-        
+
         TODO_OPERATIONS.labels(operation='read', status='success').inc()
         return TodoResponse(**todo)
     except HTTPException:
         raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation='read', status='error').inc()
-        logger.error(f"Failed to retrieve todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve todo")
     except Exception as e:
         TODO_OPERATIONS.labels(operation='read', status='error').inc()
-        logger.error(f"Unexpected error retrieving todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error retrieving todo {todo_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve todo")
 
 
 @app.put("/api/todos/{todo_id}", response_model=TodoResponse)
@@ -233,19 +252,15 @@ async def update_todo(todo_id: int, todo_update: TodoUpdate):
         if not updated_todo:
             TODO_OPERATIONS.labels(operation='update', status='not_found').inc()
             raise HTTPException(status_code=404, detail="Todo not found")
-        
+
         TODO_OPERATIONS.labels(operation='update', status='success').inc()
         return TodoResponse(**updated_todo)
     except HTTPException:
         raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation='update', status='error').inc()
-        logger.error(f"Failed to update todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update todo")
     except Exception as e:
         TODO_OPERATIONS.labels(operation='update', status='error').inc()
-        logger.error(f"Unexpected error updating todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error updating todo {todo_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update todo")
 
 
 @app.delete("/api/todos/{todo_id}")
@@ -256,21 +271,20 @@ async def delete_todo(todo_id: int):
         if not deleted:
             TODO_OPERATIONS.labels(operation='delete', status='not_found').inc()
             raise HTTPException(status_code=404, detail="Todo not found")
-        
+
         TODO_OPERATIONS.labels(operation='delete', status='success').inc()
         return {"message": "Todo deleted successfully"}
     except HTTPException:
         raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation='delete', status='error').inc()
-        logger.error(f"Failed to delete todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete todo")
     except Exception as e:
         TODO_OPERATIONS.labels(operation='delete', status='error').inc()
-        logger.error(f"Unexpected error deleting todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error deleting todo {todo_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete todo")
 
 
+# -------------------------------------------------
+# MAIN ENTRYPOINT (LOCAL DEV ONLY)
+# -------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
