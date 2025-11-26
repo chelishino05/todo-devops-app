@@ -16,9 +16,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY backend/ .
 COPY frontend/ ./frontend/
 
-# Ensure /tmp is writable (it should be by default)
+# Ensure /tmp is writable
 RUN chmod 777 /tmp
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use uvicorn directly (not gunicorn)
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
