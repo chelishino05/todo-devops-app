@@ -169,7 +169,7 @@ jobs:
             --docker-custom-image-name ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             --docker-registry-server-url https://${{ env.REGISTRY }}
 
-      - name: Configure App Settings
+      - name: Configure App Settings (NO STARTUP COMMAND)
         run: |
           az webapp config appsettings set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
@@ -178,6 +178,13 @@ jobs:
               WEBSITES_PORT=8000 \
               DOCKER_REGISTRY_SERVER_URL=https://${{ env.REGISTRY }} \
               WEBSITES_ENABLE_APP_SERVICE_STORAGE=false
+
+      - name: Clear any existing startup command
+        run: |
+          az webapp config set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group BCSAI2025-DEVOPS-STUDENTS-B \
+            --startup-file ""
 
       - name: Restart Web App
         run: |
