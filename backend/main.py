@@ -114,21 +114,18 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------
-# Static files - FIXED PATH
+# Static files
 # ---------------------------------------------------------
 
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
-
+app.mount("/static", StaticFiles(directory="../frontend"), name="static")
 
 # ---------------------------------------------------------
-# Root Route
+# Root → serve index.html
 # ---------------------------------------------------------
 
 @app.get("/")
 async def root():
-    """Serve the frontend HTML"""
-    return FileResponse("frontend/index.html")
-
+    return FileResponse("../frontend/index.html")
 
 # ---------------------------------------------------------
 # Health Check
@@ -136,7 +133,6 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with database status"""
     try:
         stats = db.get_stats()
         return {
@@ -147,125 +143,79 @@ async def health_check():
             "stats": stats
         }
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service unhealthy")
-
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "app_name": settings.app_name,
+                "version": settings.app_version,
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
 
 # ---------------------------------------------------------
-# Metrics Endpoint
+# Metrics
 # ---------------------------------------------------------
 
 @app.get("/metrics")
 async def metrics():
-    """Prometheus metrics endpoint"""
-    return Response(
-        content=generate_latest(),
-        media_type=CONTENT_TYPE_LATEST
-    )
-
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # ---------------------------------------------------------
-# Todo CRUD Endpoints
+# CRUD Routes
 # ---------------------------------------------------------
 
 @app.post("/api/todos", response_model=TodoResponse, status_code=201)
 async def create_todo(todo: TodoCreate):
-    """Create a new todo item"""
     try:
-        new_todo = db.create_todo(todo)
-        TODO_OPERATIONS.labels(operation="create", status="success").inc()
-        logger.info(f"Created todo: {new_todo['id']}")
-        return new_todo
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation="create", status="error").inc()
-        logger.error(f"Failed to create todo: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        created = db.create_todo(todo)
+        TODO_OPERATIONS.labels("create", "success").inc()
+        return TodoResponse(**created)
     except Exception as e:
-        TODO_OPERATIONS.labels(operation="create", status="error").inc()
-        logger.error(f"Unexpected error creating todo: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        TODO_OPERATIONS.labels("create", "error").inc()
+        raise HTTPException(500, str(e))
 
 
 @app.get("/api/todos", response_model=List[TodoResponse])
-async def get_all_todos():
-    """Get all todo items"""
-    try:
-        todos = db.get_all_todos()
-        TODO_OPERATIONS.labels(operation="read_all", status="success").inc()
-        return todos
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation="read_all", status="error").inc()
-        logger.error(f"Failed to fetch todos: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        TODO_OPERATIONS.labels(operation="read_all", status="error").inc()
-        logger.error(f"Unexpected error fetching todos: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+async def get_all():
+    todos = db.get_all_todos()
+    return [TodoResponse(**t) for t in todos]
 
 
 @app.get("/api/todos/{todo_id}", response_model=TodoResponse)
-async def get_todo(todo_id: int):
-    """Get a specific todo item"""
-    try:
-        todo = db.get_todo_by_id(todo_id)
-        if not todo:
-            TODO_OPERATIONS.labels(operation="read", status="not_found").inc()
-            raise HTTPException(status_code=404, detail=f"Todo {todo_id} not found")
-        TODO_OPERATIONS.labels(operation="read", status="success").inc()
-        return todo
-    except HTTPException:
-        raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation="read", status="error").inc()
-        logger.error(f"Failed to fetch todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        TODO_OPERATIONS.labels(operation="read", status="error").inc()
-        logger.error(f"Unexpected error fetching todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+async def get_one(todo_id: int):
+    todo = db.get_todo_by_id(todo_id)
+    if not todo:
+        raise HTTPException(404, "Todo not found")
+    return TodoResponse(**todo)
 
 
 @app.put("/api/todos/{todo_id}", response_model=TodoResponse)
-async def update_todo(todo_id: int, todo: TodoUpdate):
-    """Update a todo item"""
-    try:
-        updated = db.update_todo(todo_id, todo)
-        if not updated:
-            TODO_OPERATIONS.labels(operation="update", status="not_found").inc()
-            raise HTTPException(status_code=404, detail=f"Todo {todo_id} not found")
-        TODO_OPERATIONS.labels(operation="update", status="success").inc()
-        logger.info(f"Updated todo: {todo_id}")
-        return updated
-    except HTTPException:
-        raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation="update", status="error").inc()
-        logger.error(f"Failed to update todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        TODO_OPERATIONS.labels(operation="update", status="error").inc()
-        logger.error(f"Unexpected error updating todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+async def update(todo_id: int, update: TodoUpdate):
+    updated = db.update_todo(todo_id, update)
+    if not updated:
+        raise HTTPException(404, "Todo not found")
+    return TodoResponse(**updated)
 
 
 @app.delete("/api/todos/{todo_id}")
-async def delete_todo(todo_id: int):
-    """Delete a todo item"""
-    try:
-        success = db.delete_todo(todo_id)
-        if not success:
-            TODO_OPERATIONS.labels(operation="delete", status="not_found").inc()
-            raise HTTPException(status_code=404, detail=f"Todo {todo_id} not found")
-        TODO_OPERATIONS.labels(operation="delete", status="success").inc()
-        logger.info(f"Deleted todo: {todo_id}")
-        return {"message": f"Todo {todo_id} deleted successfully"}
-    except HTTPException:
-        raise
-    except DatabaseError as e:
-        TODO_OPERATIONS.labels(operation="delete", status="error").inc()
-        logger.error(f"Failed to delete todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        TODO_OPERATIONS.labels(operation="delete", status="error").inc()
-        logger.error(f"Unexpected error deleting todo {todo_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+async def delete(todo_id: int):
+    deleted = db.delete_todo(todo_id)
+    if not deleted:
+        raise HTTPException(404, "Todo not found")
+    return {"message": "Todo deleted"}
+
+
+# ---------------------------------------------------------
+# Local Dev Entrypoint
+# ---------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level="info"
+    )
