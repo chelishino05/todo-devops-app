@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
     # Application settings
-    app_name: str = "Todo List Manager"   # 👈 THIS is what tests expect
+    app_name: str = "Todo List Manager"
     app_version: str = "1.0.0"
     debug_mode: bool = False
 
@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    # Database settings
-    database_name: str = "todos.db"
+    # Database settings - Use /tmp for writable storage on Azure
+    database_name: str = os.getenv("DATABASE_PATH", "/tmp/todos.db")
     database_url: Optional[str] = None
 
     # CORS settings
@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     enable_metrics: bool = True
 
     class Config:
-        # Pydantic v1-style config (tests don’t care about the deprecation warning)
         env_file = ".env"
         env_file_encoding = "utf-8"
 

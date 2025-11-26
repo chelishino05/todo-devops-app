@@ -1,40 +1,24 @@
 FROM python:3.10-slim
 
-# System-level setup
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc curl && \
+    apt-get install -y --no-install-recommends gcc curl sqlite3 && \
     rm -rf /var/lib/apt/lists/*
 
-# Create app directory
 WORKDIR /app
 
-# Copy requirements
-COPY backend/requirements.txt /app/requirements.txt
-
-# Install Python dependencies
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy application code to /app (root level, not /app/backend)
-COPY backend/main.py /app/main.py
-COPY backend/database.py /app/database.py
-COPY backend/models.py /app/models.py
-COPY backend/config.py /app/config.py
-COPY frontend /app/frontend
+COPY backend/ .
+COPY frontend/ ./frontend/
 
-# Stay in /app directory
-WORKDIR /app
+# Ensure /tmp is writable (it should be by default)
+RUN chmod 777 /tmp
 
-# Expose port
 EXPOSE 8000
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl --fail http://localhost:8000/health || exit 1
-
-# Start server
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
