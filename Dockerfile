@@ -12,27 +12,29 @@ RUN apt-get update && \
 # Create app directory
 WORKDIR /app
 
-# Copy requirements early (Docker layer caching)
+# Copy requirements
 COPY backend/requirements.txt /app/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy the application code
-COPY backend /app/backend
+# Copy application code to /app (root level, not /app/backend)
+COPY backend/main.py /app/main.py
+COPY backend/database.py /app/database.py
+COPY backend/models.py /app/models.py
+COPY backend/config.py /app/config.py
 COPY frontend /app/frontend
 
-# Switch to backend directory
-WORKDIR /app/backend
+# Stay in /app directory
+WORKDIR /app
 
-# Expose port 8000 (Azure will map this to 80)
+# Expose port
 EXPOSE 8000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl --fail http://localhost:8000/health || exit 1
 
-# Start server - Azure provides PORT environment variable
-# If PORT is not set, default to 8000
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Start server
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
